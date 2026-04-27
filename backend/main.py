@@ -9,6 +9,13 @@ from pydantic import BaseModel
 from . import models, schemas, crud, matching, nlp_engine
 from .database import engine, get_db
 
+# Try to use Firestore if configured
+USE_FIRESTORE = os.getenv("FIREBASE_PROJECT_ID") is not None
+if USE_FIRESTORE:
+    from . import crud_firestore as crud
+else:
+    from . import crud
+
 # Ensure tables are created
 models.Base.metadata.create_all(bind=engine)
 

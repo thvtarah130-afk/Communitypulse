@@ -13,6 +13,10 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def get_db():
+    if os.getenv("FIREBASE_PROJECT_ID"):
+        yield None
+        return
+        
     db = SessionLocal()
     try:
         yield db

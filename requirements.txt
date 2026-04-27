@@ -9,3 +9,5 @@ google-generativeai
 python-dotenv
 python-multipart
 geopy
+google-cloud-firestore
+firebase-admin
