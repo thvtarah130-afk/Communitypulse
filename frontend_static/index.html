@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Community Pulse | Volunteer Matching</title>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+        body { font-family: 'Outfit', sans-serif; background: #f0f4f8; }
+        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        .sidebar-item:hover { background: rgba(59, 130, 246, 0.1); border-radius: 12px; }
+        .active-tab { background: rgba(59, 130, 246, 0.2); border-radius: 12px; color: #1e40af; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // Firebase Config (from user)
+        const firebaseConfig = {
+            apiKey: "AIzaSyC29svR7ESwtbEA8zH5oY7noWxhfzfdzzY",
+            authDomain: "community-pulse-457fa.firebaseapp.com",
+            projectId: "community-pulse-457fa",
+            storageBucket: "community-pulse-457fa.firebasestorage.app",
+            messagingSenderId: "160862138461",
+            appId: "1:160862138461:web:c84e94f4dcc9dc49e2ddb4"
+        };
+
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+
+        // --- MATH HELPERS ---
+        const haversine = (lat1, lon1, lat2, lon2) => {
+            const R = 6371; // km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        };
+
+        // --- COMPONENTS ---
+        const Dashboard = ({ needs, volunteers }) => {
+            const chartRef = useRef(null);
+
+            useEffect(() => {
+                if (needs.length > 0 && chartRef.current) {
+                    const ctx = chartRef.current.getContext('2d');
+                    const types = [...new Set(needs.map(n => n.issue_type))];
+                    const counts = types.map(t => needs.filter(n => n.issue_type === t).length);
+                    
+                    if (window.myChart) window.myChart.destroy();
+                    window.myChart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: types,
+                            datasets: [{
+                                data: counts,
+                                backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+                            }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false }
+                    });
+                }
+            }, [needs]);
+
+            return (
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div className="glass p-6 rounded-3xl shadow-sm border border-white">
+                            <p className="text-gray-500 text-sm">Total Needs</p>
+                            <h2 className="text-4xl font-bold text-blue-600">{needs.length}</h2>
+                        </div>
+                        <div className="glass p-6 rounded-3xl shadow-sm border border-white">
+                            <p className="text-gray-500 text-sm">Critical Cases</p>
+                            <h2 className="text-4xl font-bold text-red-500">{needs.filter(n => n.urgency === 'high').length}</h2>
+                        </div>
+                        <div className="glass p-6 rounded-3xl shadow-sm border border-white">
+                            <p className="text-gray-500 text-sm">Active Volunteers</p>
+                            <h2 className="text-4xl font-bold text-green-600">{volunteers.length}</h2>
+                        </div>
+                        <div className="glass p-6 rounded-3xl shadow-sm border border-white">
+                            <p className="text-gray-500 text-sm">People Affected</p>
+                            <h2 className="text-4xl font-bold text-gray-800">
+                                {needs.reduce((acc, curr) => acc + (parseInt(curr.people_affected) || 0), 0).toLocaleString()}
+                            </h2>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="glass p-8 rounded-3xl h-80 relative">
+                            <h3 className="text-lg font-semibold mb-4">Issue Breakdown</h3>
+                            <canvas ref={chartRef}></canvas>
+                        </div>
+                        <div className="glass p-8 rounded-3xl overflow-y-auto h-80">
+                            <h3 className="text-lg font-semibold mb-4">🔥 Top Critical Needs</h3>
+                            <div className="space-y-4">
+                                {needs.sort((a,b) => b.people_affected - a.people_affected).slice(0, 5).map(n => (
+                                    <div key={n.id} className="p-4 bg-white rounded-2xl border-l-4 border-red-500 shadow-sm">
+                                        <div className="flex justify-between">
+                                            <span className="font-bold">{n.issue_type.toUpperCase()}</span>
+                                            <span className="text-red-500 text-xs font-bold bg-red-50 px-2 py-1 rounded-full">HIGH</span>
+                                        </div>
+                                        <p className="text-sm text-gray-600">{n.location}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [needs, setNeeds] = useState([]);
+            const [volunteers, setVolunteers] = useState([]);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                const unsubscribeNeeds = db.collection('issues').onSnapshot(snap => {
+                    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setNeeds(data);
+                    setLoading(false);
+                });
+                const unsubscribeVols = db.collection('volunteers').onSnapshot(snap => {
+                    const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setVolunteers(data);
+                });
+                return () => { unsubscribeNeeds(); unsubscribeVols(); };
+            }, []);
+
+            return (
+                <div className="flex h-screen overflow-hidden">
+                    {/* Sidebar */}
+                    <div className="w-72 glass m-4 mr-0 rounded-3xl p-8 flex flex-col">
+                        <div className="flex items-center gap-3 mb-12">
+                            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-xl">C</div>
+                            <h1 className="text-xl font-bold tracking-tight">CommunityPulse</h1>
+                        </div>
+                        
+                        <nav className="flex-1 space-y-2">
+                            <button onClick={() => setActiveTab('dashboard')} className={`w-full text-left p-4 sidebar-item flex items-center gap-3 transition ${activeTab === 'dashboard' ? 'active-tab' : 'text-gray-500'}`}>
+                                <i data-lucide="layout-dashboard"></i> Dashboard
+                            </button>
+                            <button onClick={() => setActiveTab('upload')} className={`w-full text-left p-4 sidebar-item flex items-center gap-3 transition ${activeTab === 'upload' ? 'active-tab' : 'text-gray-500'}`}>
+                                <i data-lucide="upload-cloud"></i> Data Upload
+                            </button>
+                            <button onClick={() => setActiveTab('volunteers')} className={`w-full text-left p-4 sidebar-item flex items-center gap-3 transition ${activeTab === 'volunteers' ? 'active-tab' : 'text-gray-500'}`}>
+                                <i data-lucide="users"></i> Volunteers
+                            </button>
+                            <button onClick={() => setActiveTab('matching')} className={`w-full text-left p-4 sidebar-item flex items-center gap-3 transition ${activeTab === 'matching' ? 'active-tab' : 'text-gray-500'}`}>
+                                <i data-lucide="zap"></i> Smart Matching
+                            </button>
+                        </nav>
+
+                        <div className="mt-auto glass p-4 rounded-2xl text-xs text-blue-800 font-medium">
+                            AI-Powered Insight Engine v1.0
+                        </div>
+                    </div>
+
+                    {/* Main Content */}
+                    <div className="flex-1 p-4 overflow-y-auto">
+                        <header className="flex justify-between items-center mb-8 px-4">
+                            <h2 className="text-3xl font-bold text-gray-800 capitalize">{activeTab}</h2>
+                            <div className="flex items-center gap-4">
+                                <span className="bg-white px-4 py-2 rounded-full text-sm shadow-sm border border-gray-100">Project: community-pulse-457fa</span>
+                                <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+                            </div>
+                        </header>
+
+                        <main className="px-4">
+                            {loading ? (
+                                <div className="flex items-center justify-center h-64">
+                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                                </div>
+                            ) : (
+                                <>
+                                    {activeTab === 'dashboard' && <Dashboard needs={needs} volunteers={volunteers} />}
+                                    {activeTab === 'upload' && (
+                                        <div className="glass p-8 rounded-3xl max-w-2xl">
+                                            <h3 className="text-xl font-bold mb-6">Add New Community Record</h3>
+                                            <form className="grid grid-cols-2 gap-6" onSubmit={(e) => {
+                                                e.preventDefault();
+                                                const formData = new FormData(e.target);
+                                                const data = Object.fromEntries(formData);
+                                                db.collection('issues').add({
+                                                    ...data,
+                                                    people_affected: parseInt(data.people_affected),
+                                                    lat: parseFloat(data.lat),
+                                                    lon: parseFloat(data.lon),
+                                                    status: 'open'
+                                                });
+                                                e.target.reset();
+                                                alert('Record added to Firestore!');
+                                            }}>
+                                                <div className="col-span-1">
+                                                    <label className="block text-sm text-gray-500 mb-1">Location</label>
+                                                    <input name="location" className="w-full p-3 rounded-xl border border-gray-100 bg-gray-50" placeholder="e.g. Brooklyn" required />
+                                                </div>
+                                                <div className="col-span-1">
+                                                    <label className="block text-sm text-gray-500 mb-1">Issue Type</label>
+                                                    <select name="issue_type" className="w-full p-3 rounded-xl border border-gray-100 bg-gray-50">
+                                                        <option>health</option>
+                                                        <option>food</option>
+                                                        <option>education</option>
+                                                        <option>infrastructure</option>
+                                                        <option>other</option>
+                                                    </select>
+                                                </div>
+                                                <div className="col-span-1">
+                                                    <label className="block text-sm text-gray-500 mb-1">Latitude</label>
+                                                    <input name="lat" type="number" step="any" className="w-full p-3 rounded-xl border border-gray-100 bg-gray-50" placeholder="40.6782" required />
+                                                </div>
+                                                <div className="col-span-1">
+                                                    <label className="block text-sm text-gray-500 mb-1">Longitude</label>
+                                                    <input name="lon" type="number" step="any" className="w-full p-3 rounded-xl border border-gray-100 bg-gray-50" placeholder="-73.9442" required />
+                                                </div>
+                                                <div className="col-span-1">
+                                                    <label className="block text-sm text-gray-500 mb-1">Urgency</label>
+                                                    <select name="urgency" className="w-full p-3 rounded-xl border border-gray-100 bg-gray-50">
+                                                        <option>low</option>
+                                                        <option>medium</option>
+                                                        <option>high</option>
+                                                    </select>
+                                                </div>
+                                                <div className="col-span-1">
+                                                    <label className="block text-sm text-gray-500 mb-1">People Affected</label>
+                                                    <input name="people_affected" type="number" className="w-full p-3 rounded-xl border border-gray-100 bg-gray-50" placeholder="100" required />
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <label className="block text-sm text-gray-500 mb-1">Description</label>
+                                                    <textarea name="description" className="w-full p-3 rounded-xl border border-gray-100 bg-gray-50" rows="3" placeholder="Describe the need..." required></textarea>
+                                                </div>
+                                                <button type="submit" className="col-span-2 bg-blue-600 text-white p-4 rounded-2xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200">
+                                                    Submit to Cloud Database
+                                                </button>
+                                            </form>
+                                        </div>
+                                    )}
+                                    {activeTab === 'volunteers' && (
+                                        <div className="glass p-8 rounded-3xl">
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h3 className="text-xl font-bold">Volunteer Registry</h3>
+                                                <button className="bg-green-600 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-lg shadow-green-100">Add Volunteer</button>
+                                            </div>
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left">
+                                                    <thead>
+                                                        <tr className="text-gray-400 text-sm border-b border-gray-100">
+                                                            <th className="pb-4">Name</th>
+                                                            <th className="pb-4">Skills</th>
+                                                            <th className="pb-4">Location</th>
+                                                            <th className="pb-4">Availability</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-gray-50">
+                                                        {volunteers.map(v => (
+                                                            <tr key={v.id} className="hover:bg-gray-50 transition">
+                                                                <td className="py-4 font-semibold">{v.name}</td>
+                                                                <td className="py-4 text-sm text-blue-600 font-medium">{v.skills}</td>
+                                                                <td className="py-4 text-sm">{v.location}</td>
+                                                                <td className="py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">{v.availability}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {activeTab === 'matching' && (
+                                        <div className="space-y-6">
+                                            <div className="glass p-8 rounded-3xl flex items-center justify-between">
+                                                <div>
+                                                    <h3 className="text-xl font-bold mb-1">Smart Match Generator</h3>
+                                                    <p className="text-gray-500 text-sm">Porting AI algorithms to client-side logic...</p>
+                                                </div>
+                                                <button onClick={() => {
+                                                    // Client-side Port of the Matching Logic
+                                                    const matches = [];
+                                                    const usedVols = new Set();
+                                                    const sortedNeeds = [...needs].sort((a,b) => {
+                                                        const urgMap = {high: 3, medium: 2, low: 1};
+                                                        return urgMap[b.urgency] - urgMap[a.urgency];
+                                                    });
+
+                                                    sortedNeeds.forEach(n => {
+                                                        let bestVol = null;
+                                                        let bestScore = -1;
+                                                        volunteers.forEach(v => {
+                                                            if (usedVols.has(v.id)) return;
+                                                            
+                                                            let score = 0;
+                                                            // Skill match
+                                                            if (v.skills.toLowerCase().includes(n.issue_type.toLowerCase())) score += 40;
+                                                            // Distance match
+                                                            const dist = haversine(n.lat, n.lon, v.lat, v.lon);
+                                                            if (dist < 10) score += 40; else if (dist < 30) score += 20;
+                                                            // Urgency match
+                                                            if (n.urgency === 'high') score += 20;
+
+                                                            if (score > bestScore && score > 40) {
+                                                                bestScore = score;
+                                                                bestVol = v;
+                                                            }
+                                                        });
+                                                        if (bestVol) {
+                                                            matches.push({ need: n, vol: bestVol, score: bestScore });
+                                                            usedVols.add(bestVol.id);
+                                                        }
+                                                    });
+                                                    window.currentMatches = matches;
+                                                    alert(`Found ${matches.length} optimal matches!`);
+                                                    setActiveTab('matching_results');
+                                                }} className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-blue-100 hover:scale-105 transition">
+                                                    🚀 Run AI Matching
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {activeTab === 'matching_results' && (
+                                        <div className="glass p-8 rounded-3xl">
+                                            <h3 className="text-xl font-bold mb-6">Generated Assignments</h3>
+                                            <div className="space-y-4">
+                                                {(window.currentMatches || []).map((m, i) => (
+                                                    <div key={i} className="flex items-center justify-between p-6 bg-white rounded-3xl border border-blue-50 shadow-sm">
+                                                        <div className="flex items-center gap-6">
+                                                            <div className="text-center">
+                                                                <p className="text-xs text-gray-400 font-bold uppercase">Score</p>
+                                                                <p className="text-2xl font-bold text-blue-600">{m.score}%</p>
+                                                            </div>
+                                                            <div className="w-px h-10 bg-gray-100"></div>
+                                                            <div>
+                                                                <p className="font-bold text-lg">{m.vol.name}</p>
+                                                                <p className="text-sm text-gray-500">Skills: {m.vol.skills}</p>
+                                                            </div>
+                                                            <div className="text-gray-300">➜</div>
+                                                            <div>
+                                                                <p className="font-bold">{m.need.issue_type.toUpperCase()} - {m.need.location}</p>
+                                                                <p className="text-sm text-gray-500">Urgency: {m.need.urgency.toUpperCase()}</p>
+                                                            </div>
+                                                        </div>
+                                                        <button className="bg-blue-50 text-blue-600 px-6 py-2 rounded-xl font-bold text-sm">Approve</button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </main>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+
+        // Initialize Lucide Icons after render
+        setTimeout(() => lucide.createIcons(), 500);
+    </script>
+</body>
+</html>

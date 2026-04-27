@@ -1,20 +1,11 @@
 {
   "hosting": {
     "site": "community-pulse-457fa-1004",
-    "public": "frontend",
+    "public": "frontend_static",
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "run": {
-          "serviceId": "community-pulse",
-          "region": "us-central1"
-        }
-      }
     ]
   }
 }
