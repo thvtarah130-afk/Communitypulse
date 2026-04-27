@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Community Insight & Volunteer Matcher</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet.js -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); }
+        .sidebar-active { background: rgba(79, 70, 229, 0.1); border-right: 4px solid #4f46e5; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900" x-data="app()">
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white border-r border-gray-200 flex-shrink-0 hidden md:flex flex-col">
+            <div class="p-6">
+                <h1 class="text-xl font-bold text-indigo-600 flex items-center">
+                    <svg class="w-8 h-8 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    CommunityLink
+                </h1>
+            </div>
+            <nav class="flex-1 px-4 space-y-2 py-4">
+                <button @click="tab = 'dashboard'" :class="tab === 'dashboard' ? 'sidebar-active' : ''" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 transition">
+                    <svg class="w-5 h-5 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                    Dashboard
+                </button>
+                <button @click="tab = 'needs'" :class="tab === 'needs' ? 'sidebar-active' : ''" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 transition">
+                    <svg class="w-5 h-5 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    Community Needs
+                </button>
+                <button @click="tab = 'volunteers'" :class="tab === 'volunteers' ? 'sidebar-active' : ''" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 transition">
+                    <svg class="w-5 h-5 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    Volunteers
+                </button>
+                <button @click="tab = 'matching'" :class="tab === 'matching' ? 'sidebar-active' : ''" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 transition">
+                    <svg class="w-5 h-5 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    Smart Matching
+                </button>
+            </nav>
+            <div class="p-4 border-t border-gray-200">
+                <div class="bg-indigo-50 p-4 rounded-xl">
+                    <p class="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-1">AI Assistant</p>
+                    <p class="text-sm text-indigo-900 mb-3">Ask Gemini for deployment insights.</p>
+                    <button @click="tab = 'ai'" class="w-full bg-indigo-600 text-white text-xs font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition">Open Chat</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 overflow-y-auto">
+            <header class="bg-white border-b border-gray-200 p-4 sticky top-0 z-10 flex justify-between items-center">
+                <h2 class="text-xl font-semibold capitalize" x-text="tab.replace('-', ' ')"></h2>
+                <div class="flex items-center space-x-4">
+                    <button @click="loadData()" class="p-2 text-gray-400 hover:text-indigo-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    </button>
+                    <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">A</div>
+                </div>
+            </header>
+
+            <div class="p-8">
+                <!-- Dashboard Tab -->
+                <div x-show="tab === 'dashboard'" x-cloak class="space-y-8">
+                    <!-- Stats Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <template x-for="stat in stats" :key="stat.label">
+                            <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                                <p class="text-sm font-medium text-gray-500" x-text="stat.label"></p>
+                                <p class="text-3xl font-bold mt-2" x-text="stat.value"></p>
+                                <div class="mt-4 flex items-center text-xs" :class="stat.trend > 0 ? 'text-green-500' : 'text-gray-400'">
+                                    <span x-text="stat.trend > 0 ? '↑' : '→'"></span>
+                                    <span class="ml-1" x-text="stat.subtext"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- Chart -->
+                        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                            <h3 class="font-semibold mb-6">Needs Distribution</h3>
+                            <canvas id="needsChart" height="200"></canvas>
+                        </div>
+                        <!-- Map -->
+                        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                            <h3 class="font-semibold mb-6">Regional Hotspots</h3>
+                            <div id="map" class="h-64 rounded-xl border border-gray-100"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Needs Tab -->
+                <div x-show="tab === 'needs'" x-cloak class="space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-semibold">Active Community Reports</h3>
+                        <button @click="showModal = 'add-need'" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">Report New Issue</button>
+                    </div>
+                    <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                        <table class="w-full text-left">
+                            <thead class="bg-gray-50 border-b border-gray-100">
+                                <tr>
+                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Location</th>
+                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Issue Type</th>
+                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Urgency</th>
+                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Impact</th>
+                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <template x-for="issue in issues" :key="issue.id">
+                                    <tr class="hover:bg-gray-50 transition">
+                                        <td class="px-6 py-4 font-medium" x-text="issue.location"></td>
+                                        <td class="px-6 py-4">
+                                            <span class="px-2 py-1 rounded-full text-xs font-medium bg-gray-100" x-text="issue.issue_type"></span>
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            <span :class="{
+                                                'text-red-600 bg-red-50': issue.urgency === 'high',
+                                                'text-orange-600 bg-orange-50': issue.urgency === 'medium',
+                                                'text-green-600 bg-green-50': issue.urgency === 'low'
+                                            }" class="px-2 py-1 rounded-full text-xs font-medium" x-text="issue.urgency"></span>
+                                        </td>
+                                        <td class="px-6 py-4 text-gray-500" x-text="issue.people_affected + ' people'"></td>
+                                        <td class="px-6 py-4">
+                                            <span class="flex items-center text-xs text-gray-500">
+                                                <span class="w-2 h-2 rounded-full mr-2" :class="issue.status === 'open' ? 'bg-blue-500' : 'bg-gray-300'"></span>
+                                                <span x-text="issue.status"></span>
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Volunteers Tab -->
+                <div x-show="tab === 'volunteers'" x-cloak class="space-y-6">
+                     <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-semibold">Registered Volunteers</h3>
+                        <button @click="showModal = 'add-volunteer'" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">Register Volunteer</button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <template x-for="vol in volunteers" :key="vol.id">
+                            <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
+                                <div class="flex items-center mb-4">
+                                    <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold" x-text="vol.name[0]"></div>
+                                    <div class="ml-3">
+                                        <p class="font-semibold" x-text="vol.name"></p>
+                                        <p class="text-xs text-gray-500" x-text="vol.location"></p>
+                                    </div>
+                                </div>
+                                <div class="space-y-2">
+                                    <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Skills</p>
+                                    <div class="flex flex-wrap gap-2">
+                                        <template x-for="skill in vol.skills.split(',')" :key="skill">
+                                            <span class="px-2 py-1 bg-gray-50 text-gray-600 rounded text-xs" x-text="skill.trim()"></span>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Matching Tab -->
+                <div x-show="tab === 'matching'" x-cloak class="space-y-6">
+                    <div class="flex justify-between items-center bg-indigo-900 p-8 rounded-2xl text-white">
+                        <div>
+                            <h3 class="text-2xl font-bold">Optimization Engine</h3>
+                            <p class="text-indigo-200 mt-2">AI-driven volunteer matching based on proximity, skills, and urgency.</p>
+                        </div>
+                        <button @click="runMatching()" class="bg-white text-indigo-900 px-6 py-3 rounded-xl font-bold hover:bg-indigo-50 transition shadow-lg flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                            Optimize Deployment
+                        </button>
+                    </div>
+
+                    <div class="space-y-4">
+                        <h4 class="font-semibold text-gray-500 uppercase text-xs tracking-widest">Recommended Pairings</h4>
+                        <template x-for="match in matches" :key="match.id">
+                            <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+                                <div class="flex items-center space-x-8">
+                                    <div>
+                                        <p class="text-xs text-gray-400 uppercase">Volunteer</p>
+                                        <p class="font-bold" x-text="match.volunteer_name"></p>
+                                    </div>
+                                    <div class="text-indigo-400">→</div>
+                                    <div>
+                                        <p class="text-xs text-gray-400 uppercase">Need</p>
+                                        <p class="font-bold" x-text="match.issue_type + ' at ' + match.location"></p>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-xs text-gray-400 uppercase">Match Score</p>
+                                    <div class="flex items-center">
+                                        <div class="w-24 bg-gray-100 h-2 rounded-full mr-3">
+                                            <div class="bg-green-500 h-2 rounded-full" :style="'width: ' + match.score + '%'"></div>
+                                        </div>
+                                        <span class="font-bold text-green-600" x-text="match.score + '%'"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- AI Chat Tab -->
+                <div x-show="tab === 'ai'" x-cloak class="h-[calc(100vh-12rem)] bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col">
+                    <div class="p-6 border-b border-gray-100 flex items-center">
+                        <div class="w-3 h-3 bg-green-500 rounded-full mr-3 animate-pulse"></div>
+                        <h3 class="font-semibold">Gemini Intelligence Assistant</h3>
+                    </div>
+                    <div class="flex-1 p-6 overflow-y-auto space-y-4" id="chat-box">
+                        <template x-for="msg in chatHistory" :key="msg.id">
+                            <div :class="msg.role === 'user' ? 'justify-end' : 'justify-start'" class="flex">
+                                <div :class="msg.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-800'" class="max-w-md p-4 rounded-2xl text-sm" x-text="msg.content"></div>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="p-6 border-t border-gray-100">
+                        <div class="flex space-x-4">
+                            <input type="text" x-model="chatInput" @keyup.enter="sendChat()" placeholder="Ask about deployment strategies..." class="flex-1 bg-gray-50 border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500">
+                            <button @click="sendChat()" class="bg-indigo-600 text-white p-3 rounded-xl hover:bg-indigo-700 transition">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div x-show="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50" x-cloak>
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8" @click.away="showModal = false">
+            <template x-if="showModal === 'add-need'">
+                <div class="space-y-4">
+                    <h3 class="text-xl font-bold">Report Community Need</h3>
+                    <input type="text" x-model="newIssue.location" placeholder="Location Name" class="w-full bg-gray-50 border-none rounded-xl px-4 py-3">
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="number" x-model.number="newIssue.lat" placeholder="Latitude" class="bg-gray-50 border-none rounded-xl px-4 py-3">
+                        <input type="number" x-model.number="newIssue.lon" placeholder="Longitude" class="bg-gray-50 border-none rounded-xl px-4 py-3">
+                    </div>
+                    <select x-model="newIssue.issue_type" class="w-full bg-gray-50 border-none rounded-xl px-4 py-3">
+                        <option value="auto">Auto-detect Type</option>
+                        <option value="health">Health</option>
+                        <option value="food">Food</option>
+                        <option value="education">Education</option>
+                        <option value="infrastructure">Infrastructure</option>
+                    </select>
+                    <textarea x-model="newIssue.description" placeholder="Describe the situation..." class="w-full bg-gray-50 border-none rounded-xl px-4 py-3 h-24"></textarea>
+                    <select x-model="newIssue.urgency" class="w-full bg-gray-50 border-none rounded-xl px-4 py-3">
+                        <option value="low">Low Urgency</option>
+                        <option value="medium">Medium Urgency</option>
+                        <option value="high">High Urgency</option>
+                    </select>
+                    <input type="number" x-model.number="newIssue.people_affected" placeholder="People Affected" class="w-full bg-gray-50 border-none rounded-xl px-4 py-3">
+                    <button @click="submitIssue()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transition">Submit Report</button>
+                </div>
+            </template>
+            <template x-if="showModal === 'add-volunteer'">
+                 <div class="space-y-4">
+                    <h3 class="text-xl font-bold">Volunteer Registration</h3>
+                    <input type="text" x-model="newVol.name" placeholder="Full Name" class="w-full bg-gray-50 border-none rounded-xl px-4 py-3">
+                    <input type="text" x-model="newVol.skills" placeholder="Skills (comma separated)" class="w-full bg-gray-50 border-none rounded-xl px-4 py-3">
+                    <input type="text" x-model="newVol.location" placeholder="Primary Location" class="w-full bg-gray-50 border-none rounded-xl px-4 py-3">
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="number" x-model.number="newVol.lat" placeholder="Latitude" class="bg-gray-50 border-none rounded-xl px-4 py-3">
+                        <input type="number" x-model.number="newVol.lon" placeholder="Longitude" class="bg-gray-50 border-none rounded-xl px-4 py-3">
+                    </div>
+                    <button @click="submitVolunteer()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transition">Complete Registration</button>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <script>
+        function app() {
+            return {
+                tab: 'dashboard',
+                showModal: false,
+                stats: [
+                    { label: 'Active Needs', value: '0', trend: 0, subtext: 'Updated live' },
+                    { label: 'Volunteers', value: '0', trend: 0, subtext: 'Ready to deploy' },
+                    { label: 'People Impacted', value: '0', trend: 0, subtext: 'Total reach' },
+                    { label: 'Match Rate', value: '0%', trend: 0, subtext: 'Deployment efficiency' }
+                ],
+                issues: [],
+                volunteers: [],
+                matches: [],
+                chatHistory: [
+                    { id: 1, role: 'bot', content: 'Hello! I am your Gemini-powered coordination assistant. How can I help you optimize community resources today?' }
+                ],
+                chatInput: '',
+                newIssue: { location: '', lat: 40.7128, lon: -74.006, issue_type: 'auto', description: '', urgency: 'medium', people_affected: 1 },
+                newVol: { name: '', skills: '', location: '', lat: 40.7128, lon: -74.006, availability: 'Full-time' },
+                map: null,
+                chart: null,
+
+                async init() {
+                    this.initMap();
+                    await this.loadData();
+                    this.initChart();
+                },
+
+                initMap() {
+                    this.map = L.map('map').setView([40.7128, -74.006], 12);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; OpenStreetMap'
+                    }).addTo(this.map);
+                },
+
+                initChart() {
+                    const ctx = document.getElementById('needsChart').getContext('2d');
+                    this.chart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Health', 'Food', 'Education', 'Infrastructure', 'Other'],
+                            datasets: [{
+                                data: [0, 0, 0, 0, 0],
+                                backgroundColor: ['#ef4444', '#f97316', '#3b82f6', '#8b5cf6', '#94a3b8'],
+                                borderWidth: 0
+                            }]
+                        },
+                        options: {
+                            plugins: { legend: { position: 'bottom' } },
+                            cutout: '70%'
+                        }
+                    });
+                },
+
+                async loadData() {
+                    try {
+                        const [resIssues, resVols, resMatches] = await Promise.all([
+                            fetch('/issues/').then(r => r.json()),
+                            fetch('/volunteers/').then(r => r.json()),
+                            fetch('/matches/').then(r => r.json())
+                        ]);
+                        this.issues = resIssues;
+                        this.volunteers = resVols;
+                        this.matches = resMatches.map(m => {
+                            const v = this.volunteers.find(vol => vol.id === m.volunteer_id);
+                            const i = this.issues.find(iss => iss.id === m.issue_id);
+                            return { ...m, volunteer_name: v?.name || 'Unknown', issue_type: i?.issue_type || 'Need', location: i?.location || 'Unknown' };
+                        });
+                        this.updateStats();
+                        this.updateVisuals();
+                    } catch (e) { console.error('Load failed', e); }
+                },
+
+                updateStats() {
+                    this.stats[0].value = this.issues.length;
+                    this.stats[1].value = this.volunteers.length;
+                    this.stats[2].value = this.issues.reduce((sum, i) => sum + i.people_affected, 0);
+                    const rate = this.issues.length ? Math.round((this.matches.length / this.issues.length) * 100) : 0;
+                    this.stats[3].value = rate + '%';
+                },
+
+                updateVisuals() {
+                    // Update Chart
+                    if (this.chart) {
+                        const counts = { health: 0, food: 0, education: 0, infrastructure: 0, other: 0 };
+                        this.issues.forEach(i => counts[i.issue_type] = (counts[i.issue_type] || 0) + 1);
+                        this.chart.data.datasets[0].data = [counts.health, counts.food, counts.education, counts.infrastructure, counts.other];
+                        this.chart.update();
+                    }
+                    // Update Map
+                    if (this.map) {
+                        this.map.eachLayer((layer) => { if (layer instanceof L.CircleMarker) this.map.removeLayer(layer); });
+                        this.issues.forEach(i => {
+                            if (i.lat && i.lon) {
+                                L.circleMarker([i.lat, i.lon], {
+                                    radius: 8,
+                                    fillColor: i.urgency === 'high' ? '#ef4444' : (i.urgency === 'medium' ? '#f97316' : '#22c55e'),
+                                    color: '#fff', weight: 2, fillOpacity: 0.8
+                                }).addTo(this.map).bindPopup(`<b>${i.location}</b><br>${i.issue_type} - ${i.urgency}`);
+                            }
+                        });
+                    }
+                },
+
+                async submitIssue() {
+                    const res = await fetch('/issues/', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(this.newIssue)
+                    });
+                    if (res.ok) { this.showModal = false; await this.loadData(); }
+                },
+
+                async submitVolunteer() {
+                    const res = await fetch('/volunteers/', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(this.newVol)
+                    });
+                    if (res.ok) { this.showModal = false; await this.loadData(); }
+                },
+
+                async runMatching() {
+                    const res = await fetch('/run_matching/', { method: 'POST' });
+                    if (res.ok) { await this.loadData(); alert('Matches optimized successfully!'); }
+                },
+
+                async sendChat() {
+                    if (!this.chatInput) return;
+                    const userMsg = { id: Date.now(), role: 'user', content: this.chatInput };
+                    this.chatHistory.push(userMsg);
+                    const q = this.chatInput;
+                    this.chatInput = '';
+                    
+                    try {
+                        const res = await fetch('/chat/', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ prompt: q, context: `Issues: ${this.issues.length}, Vols: ${this.volunteers.length}` })
+                        });
+                        const data = await res.json();
+                        this.chatHistory.push({ id: Date.now() + 1, role: 'bot', content: data.response });
+                    } catch (e) {
+                        this.chatHistory.push({ id: Date.now() + 1, role: 'bot', content: 'Sorry, I am having trouble connecting to the brain.' });
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>

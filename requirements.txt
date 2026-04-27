@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+jinja2
+pandas
+spacy
+google-generativeai
+python-dotenv
+python-multipart
+geopy
